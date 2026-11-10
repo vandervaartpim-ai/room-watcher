@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-# ROOM watcher: kijkt op roommatch.nl naar nieuwe kamers en plaatst een
-# GitHub-issue als er een nieuwe kamer is die past. GitHub mailt je daarover.
+# ROOM watcher: kijkt op roommatch.nl naar nieuwe kamers en stuurt via Gmail
+# een mail als er een nieuwe kamer is die past.
 #
-# Pas hieronder de stad en de maximale huur per persoon aan.
+# Pas hieronder de stad en de maximale huur per persoon aan. Het Gmail-adres en
+# app-wachtwoord staan als secrets in GitHub (GMAIL_ADDRESS, GMAIL_APP_PASSWORD).
 
 import json
 import os
 import re
+import smtplib
 import time
 import urllib.request
+from email.mime.text import MIMEText
 from pathlib import Path
 
 CITY = "Delft"
@@ -112,21 +115,17 @@ def describe(obj):
     return "\n".join(lines)
 
 
-def create_issue(subject, body):
-    repo = os.environ["GITHUB_REPOSITORY"]
-    owner = os.environ.get("GITHUB_REPOSITORY_OWNER", "")
-    data = json.dumps({"title": subject, "body": f"@{owner}\n\n{body}"}).encode()
-    req = urllib.request.Request(
-        f"https://api.github.com/repos/{repo}/issues",
-        data=data,
-        method="POST",
-        headers={
-            "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
-            "Accept": "application/vnd.github+json",
-            "Content-Type": "application/json",
-        },
-    )
-    urllib.request.urlopen(req, timeout=30).close()
+def send_mail(subject, body):
+    user = os.environ["GMAIL_ADDRESS"]
+    password = os.environ["GMAIL_APP_PASSWORD"].replace(" ", "")
+    recipients = [a.strip() for a in (os.environ.get("MAIL_TO") or user).split(",") if a.strip()]
+    msg = MIMEText(body, "plain", "utf-8")
+    msg["Subject"] = subject
+    msg["From"] = user
+    msg["To"] = ", ".join(recipients)
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as smtp:
+        smtp.login(user, password)
+        smtp.sendmail(user, recipients, msg.as_string())
 
 
 def load_seen():
@@ -150,7 +149,7 @@ def main():
     if new:
         body = f"{len(new)} nieuwe woning(en) op ROOM in {CITY} (max €{MAX_PER_PERSON} p.p.):\n\n"
         body += "\n\n".join(describe(o) for o in new)
-        create_issue(f"ROOM: {len(new)} nieuwe woning(en) in {CITY}", body)
+        send_mail(f"ROOM: {len(new)} nieuwe woning(en) in {CITY}", body)
         print(body)
     else:
         print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - {len(listings)} advertenties, niks nieuws.")
