@@ -2,12 +2,11 @@ name: ROOM watcher
 
 on:
   schedule:
-    - cron: "*/30 * * * *"  # reserve; cron-job.org start hem elke 5 minuten
-  workflow_dispatch:         # starten via cron-job.org of de Actions-tab
+    - cron: "*/5 * * * *"   # elke 5 minuten (GitHub voert dit vaak later uit)
+  workflow_dispatch:         # handmatig starten via de Actions-tab
 
 permissions:
   contents: write            # nodig om seen.json op te slaan
-  issues: write              # nodig om meldingen als issue te plaatsen
 
 concurrency:
   group: room-watcher
@@ -23,7 +22,9 @@ jobs:
           python-version: "3.12"
       - name: Check ROOM
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GMAIL_ADDRESS: ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          MAIL_TO: ${{ secrets.MAIL_TO }}
         run: python room_watcher.py
       - name: Save seen.json
         run: |
